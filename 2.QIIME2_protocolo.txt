@@ -1,0 +1,394 @@
+#!/bin/bash
+#  QIIME2_protocolo.txt
+#  Copyright 2023- E. Ernestina Godoy Lozano (elizabeth.godoy@insp.mx)
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#  MA 02110-1301, USA.
+#  Texto sin acentos
+
+################################################################################################
+#####      Modulo : Analisis de secuencias de amplicones 16S con QIIME2                    #####
+#####                          Ponente: E. Ernestina Godoy Lozano                          #####
+#####                                 Bitacora de comandos                                 #####
+################################################################################################
+
+#########################################################
+###  Ejercicio 1: Conectarnos al servidor del curso   ###
+#########################################################
+
+#ssh -X alumnoX@201.131.57.109
+
+
+#########################################################
+###        Ejercicio 2: Crear espacio de trabajo      ###
+#########################################################
+# Ir a mi home
+cd
+
+# Crear directorio de trabajo
+mkdir 16STaxo
+cd 16STaxo
+mkdir qiime2
+
+#########################################################
+### Ejercicio 3: Explorar los datos que usaremos      ###
+#########################################################
+# Listado de archivos
+
+# Manifiesto y Metadatos
+ls /home/tgodoy/proyects/curso16S/data
+cat /home/tgodoy/proyects/curso16S/data/metadata.tsv
+cat /home/tgodoy/proyects/curso16S/data/manifiesto.csv
+
+# Secuencias crudas
+ls /home/tgodoy/proyects/curso16S/raw_data
+head /home/tgodoy/proyects/curso16S/raw_data/Cru1_S1_R1.fastq
+
+# Contar secuencias
+grep -c '^+' /home/tgodoy/proyects/curso16S/raw_data/*.fastq
+
+# Base de datos
+ls /usr/local/database/silva/
+
+############################################################
+### Ejercicio 4: Activar el ambiente de conda de QIIME2  ###
+############################################################
+qrsh
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+source /usr/local/miniconda3/bin/activate 
+conda activate qiime2-2023.5
+
+############################################################
+### Ejercicio 5: Visualizar los plugins instalados       ###
+############################################################
+qiime --help
+
+############################################################
+### Ejercicio 6: Visualizar la ayuda de un plugin        ###
+############################################################
+qiime taxa --help
+
+# Visualizar la ayuda de un comando en especifico del plugin
+qiime taxa barplot --help
+
+############################################################
+### Ejercicio 7: Convertir archivo de metadata a qzv     ###
+###                Tiempo aprox 5 a 10 seg               ###
+############################################################
+# Acceder al directorio qiime2
+cd qiime2
+qiime metadata tabulate \
+--m-input-file /home/tgodoy/proyects/curso16S/data/metadata.tsv \
+--o-visualization 1.metadata.qzv
+
+############################################################
+### Ejercicio 8: Visualizar el archivo metadata.qzv      ###
+############################################################
+# Opcion1. A traves de qiime tools view
+#qiime tools view 1.metadata.qzv
+
+#Opcion2. Descargando el archivo a mi computadora por medio del comando scp
+# a) Dentro de mi computadora, abrir otra pestaña de la consola
+# b) Cambiar de directorio a donde quiero descargar los resultados
+# c) Descargar archivo por medio de scp
+scp -r alumnoXX@201.131.57.109:/home/alumnoXX/16STaxo/qiime2/1.metadata.qzv .
+
+# d) En mi navegador ir a la pagina web https://view.qiime2.org/
+# e) Visualizar archivo
+
+############################################################
+###       Ejercicio 9: Importar mis datos a QIIME2       ###
+###                Tiempo aprox 30 a 40 seg              ###
+############################################################
+qiime tools import \
+--type SampleData[PairedEndSequencesWithQuality] \
+--input-format PairedEndFastqManifestPhred33 \
+--input-path /home/tgodoy/proyects/curso16S/data/manifiesto.csv \
+--output-path 2.demux.qza
+
+############################################################
+### Ejercicio 10: Generar la visualizacion de mis datos  ###
+###                Tiempo aprox 15 a 20 seg              ###
+############################################################
+qiime demux summarize \
+--i-data 2.demux.qza \
+--o-visualization 2.demux.qzv
+
+# Descargar el archivo para observarlo en https://view.qiime2.org/
+
+scp -r alumnoXX@201.131.57.109:/home/alumnoXX/16STaxo/qiime2/2.demux.qzv .
+
+############################################################
+### Ejercicio 11: Eliminacion de errores (denoising) y   ### 
+###              la clusterizacion con DADA2             ###
+###                Tiempo aprox 60 a 70 seg              ###
+############################################################
+
+qiime dada2 denoise-paired \
+--i-demultiplexed-seqs 2.demux.qza \
+--p-trunc-len-f 295 \
+--p-trunc-len-r 240 \
+--o-table 3.table.qza \
+--o-representative-sequences 3.rep-seqs.qza \
+--o-denoising-stats 3.denoising-stats.qza
+
+# Generamos el archivo para visualizacion 
+# Tiempo aprox 8 a 10 seg
+qiime metadata tabulate \
+--m-input-file 3.denoising-stats.qza \
+--o-visualization 3.denoising-stats.qzv
+
+# Descargar el archivo para observarlo en https://view.qiime2.org/
+scp -r alumnoXX@201.131.57.109:/home/alumnoXX/16STaxo/qiime2/3.denoising-stats.qzv .
+
+############################################################
+### Ejercicio 12: Generar visalizacion de las            ###
+###           secuencias representativas (FeatureData)   ### 
+###                Tiempo aprox 40 a 45 seg              ###
+############################################################
+
+qiime feature-table tabulate-seqs \
+--i-data 3.rep-seqs.qza \
+--o-visualization 4.rep-seqs.qzv
+
+# Exportando las secuencias representativas en formato fasta
+# Tiempo aprox 8 a 10 seg
+qiime tools export \
+--input-path 3.rep-seqs.qza \
+--output-path 4.RepSeqFasta
+
+# Descargar el archivo para observarlo en https://view.qiime2.org/
+scp -r alumnoXX@201.131.57.109:/home/alumnoXX/16STaxo/qiime2/4.rep-seqs.qzv .
+
+############################################################
+### Ejercicio 13: Generar la tabla de abundancias        ###
+###                absolutas (FeatureTable)              ###
+###                Tiempo aprox 40 a 45 seg              ###
+############################################################
+
+qiime feature-table summarize \
+--i-table 3.table.qza \
+--o-visualization 3.table.qzv \
+--m-sample-metadata-file /home/tgodoy/proyects/curso16S/data/metadata.tsv
+
+# Descargar el archivo para observarlo en https://view.qiime2.org/
+scp -r alumnoXX@201.131.57.109:/home/alumnoXX/16STaxo/qiime2/3.table.qzv .
+
+############################################################
+### Ejercicio 14: Asignacion taxonomica usando BLAST+    ###
+###                Tiempo aprox 8 a 10 min               ###
+############################################################
+qiime feature-classifier classify-consensus-blast \
+--i-query 3.rep-seqs.qza \
+--i-reference-reads /usr/local/database/silva/silva_132_99_16S.qza \
+--i-reference-taxonomy /usr/local/database/silva/majority_taxonomy_7_levels.qza \
+--o-classification 5.taxonomy_blast.qza \
+--o-search-results 6.taxonomy_hits_silva132.qza
+
+# cp /home/tgodoy/proyects/curso16S/qiime2/5.taxonomy_blast.qza .
+
+# Generamos el archivo para visualizacion 
+# Tiempo aprox 8 a 10 seg
+
+qiime metadata tabulate \
+--m-input-file 5.taxonomy_blast.qza \
+--o-visualization 6.taxonomy_blast.qzv
+
+# Descargar el archivo para observarlo en https://view.qiime2.org/
+scp -r alumnoXX@201.131.57.109:/home/alumnoXX/16STaxo/qiime2/6.taxonomy_blast.qzv .
+
+# Generamos un archivo de graficas apiladas (barplots)
+# Tiempo aprox 5 a 8 seg
+
+qiime taxa barplot \
+--i-table 3.table.qza \
+--i-taxonomy 5.taxonomy_blast.qza \
+--m-metadata-file /home/tgodoy/proyects/curso16S/data/metadata.tsv \
+--o-visualization 7.taxa-bar-plots_blast.qzv
+
+# Descargar el archivo para observarlo en https://view.qiime2.org/
+scp -r alumnoXX@201.131.57.109:/home/alumnoXX/16STaxo/qiime2/taxa-bar-plots_blast.qzv .
+
+############################################################
+### Ejercicio 15: FeatureTable a formato BIOM            ###
+###                Tiempo aprox 8 a 10 seg               ###
+############################################################
+
+qiime tools export \
+--input-path 3.table.qza \
+--output-path 8.taxa_levels
+
+# Explorar el directorio de 8.taxa_levels
+$ls 8.taxa_levels/
+
+# Exportar el archivo de taxonomia a archivo tabular
+# Tiempo aprox 5 a 8 seg
+
+qiime tools export \
+--input-path 5.taxonomy_blast.qza \
+--output-path 8.taxa_levels
+
+# Explorar el directorio de 8.taxa_levels
+ls 8.taxa_levels/
+
+# Agregando la informacion de la asignacion taxonomica a la tabla con formato BIOM
+# Tiempo aprox 5 a 8 seg
+
+biom add-metadata \
+-i ./8.taxa_levels/feature-table.biom \
+-o ./8.taxa_levels/tableConTax.biom \
+--observation-metadata-fp ./8.taxa_levels/taxonomy.tsv \
+--observation-header OTUID,taxonomy \
+--sc-separated taxonomy
+
+# Explorar el directorio de 8.taxa_levels
+ls 8.taxa_levels/
+
+# Convertir el archivo BIOM a un archivo de texto tabular
+# Tiempo aprox 5 a 8 seg
+
+biom convert \
+-i ./8.taxa_levels/tableConTax.biom \
+-o ./8.taxa_levels/TablaFinal.txt \
+--to-tsv \
+--header-key taxonomy
+
+# Explorar el directorio de 8.taxa_levels
+ls 8.taxa_levels/
+
+# Explorar la TablaFinal.txt
+less -S 8.taxa_levels/TablaFinal.txt
+
+
+############################################################
+### Ejercicio 16: Reconstruccion filogenetica            ###
+###           para los analisis de diversidad            ###
+###                Tiempo aprox 8 a 10 seg               ###
+############################################################
+
+qiime phylogeny align-to-tree-mafft-fasttree \
+--i-sequences 3.rep-seqs.qza \
+--o-alignment 9.aligned-rep-seqs.qza \
+--o-masked-alignment 9.masked-aligned-rep-seqs.qza \
+--o-tree 9.unrooted-tree.qza \
+--o-rooted-tree 9.rooted-tree.qza
+
+# Descargar el archivo para observarlo en iTOL (https://itol.embl.de/)
+# Es necesario descargar el archivo 5.taxonomy_blast.qza para cambiar las anotaciones en itol
+scp -r alumnoXX@201.131.57.109:/home/alumnoXX/16STaxo/qiime2/*rooted-tree.qza .
+scp -r alumnoXX@201.131.57.109:/home/alumnoXX/16STaxo/qiime2/5.taxonomy_blast.qza .
+
+############################################################
+### Ejercicio 17:     Graficas de rarefaccion            ###
+###                Tiempo aprox 40 a 50 seg              ###
+############################################################
+
+qiime diversity alpha-rarefaction \
+--i-table 3.table.qza \
+--i-phylogeny 9.rooted-tree.qza \
+--p-max-depth 60 \
+--m-metadata-file /home/tgodoy/proyects/curso16S/data/metadata.tsv \
+--o-visualization 10.alpha-rarefaction.qzv
+
+# Descargar el archivo para observarlo en https://view.qiime2.org/
+scp -r alumnoXX@201.131.57.109:/home/alumnoXX/16STaxo/qiime2/10.alpha-rarefaction.qzv .
+
+############################################################
+### Ejercicio 18: Metricas de alfa y beta diversidad     ###
+###                Tiempo aprox 8 a 10 seg               ###
+############################################################
+
+qiime diversity core-metrics-phylogenetic \
+--i-phylogeny 9.rooted-tree.qza \
+--i-table 3.table.qza \
+--p-sampling-depth 60 \
+--m-metadata-file /home/tgodoy/proyects/curso16S/data/metadata.tsv \
+--output-dir 11.core_metrics_results
+
+# Descargar los archivos .qzv para observarlos en https://view.qiime2.org/
+# En mi computadora crear un directorio y entrar a el para comenzar la descarga
+mkdir 11.core_metrics_results
+cd 11.core_metrics_results
+scp -r alumnoXX@201.131.57.109:/home/alumnoXX/16STaxo/qiime2/11.core_metrics_results/*.qzv .
+
+# Alfa diversidad: Explorar el indice de Shannon
+# Tiempo aprox 5 a 8 seg
+
+qiime diversity alpha-group-significance \
+--i-alpha-diversity 11.core_metrics_results/shannon_vector.qza \
+--m-metadata-file /home/tgodoy/proyects/curso16S/data/metadata.tsv \
+--o-visualization 11.core_metrics_results/shannon-group-significance.qzv
+
+# Descargar el archivo para observarlo en https://view.qiime2.org/
+scp -r alumnoXX@201.131.57.109:/home/alumnoXX/16STaxo/qiime2/11.core_metrics_results/shannon-group-significance.qzv .
+
+# Beta diversidad: Explorar las distancias por el metodo "unweighted unifrac" por la variable "Type"
+# Tiempo aprox 5 a 8 seg
+
+qiime diversity beta-group-significance \
+--i-distance-matrix 11.core_metrics_results/unweighted_unifrac_distance_matrix.qza \
+--m-metadata-file /home/tgodoy/proyects/curso16S/data/metadata.tsv \
+--m-metadata-column Type \
+--p-pairwise \
+--o-visualization 11.core_metrics_results/uw_unifrac-delivery-significance.qzv
+
+# Descargar el archivo para observarlo en https://view.qiime2.org/
+scp -r alumnoXX@201.131.57.109:/home/alumnoXX/16STaxo/qiime2/11.core_metrics_results/uw_unifrac-delivery-significance.qzv
+ .
+
+############################################################
+###             Desactivar el ambiente de conda          ###
+############################################################
+conda deactivate 
+
+
+############################################################
+###                      Ejercicios extra                ###
+############################################################
+
+# Colapsar la tabla a un nivel taxonomico especifico (genero; nivel 6)
+# Tiempo aprox 5 a 8 seg
+
+# Entrar al directorio de trabajo:
+cd 16STaxo/qiime2
+
+qiime taxa collapse \
+--i-table 3.table.qza \
+--i-taxonomy 5.taxonomy_blast.qza \
+--p-level 6 \
+--o-collapsed-table 8.taxa_levels/table_level6_genus.qza
+
+# Exportando la tabla colapsada a formato BIOM
+# Tiempo aprox 5 a 8 seg
+
+qiime tools export \
+--input-path 8.taxa_levels/table_level6_genus.qza \
+--output-path level6_Genus
+
+# Explorar el directorio de level6_Genus
+ls level6_Genus/
+
+# Convertir los datos BIOM a archivo de texto tabular
+# Tiempo aprox 5 a 8 seg
+
+biom convert \
+-i ./level6_Genus/feature-table.biom \
+-o ./level6_Genus/CollapsedTaxonomy_level6_Genus.tsv \
+--to-tsv
+
+# Explorar el directorio de level6_Genus
+ls level6_Genus/
+less -S level6_Genus/CollapsedTaxonomy_level6_Genus.tsv
